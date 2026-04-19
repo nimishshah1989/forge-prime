@@ -351,8 +351,48 @@ def cmd_logs(args: argparse.Namespace) -> None:
 
 
 def cmd_dashboard(args: argparse.Namespace) -> None:
-    webbrowser.open("http://localhost:8099")
-    print("[forge] Opening dashboard at http://localhost:8099")
+    port = 8099
+    spec_dir = Path(__file__).parent.parent
+    pid_file = FORGE_STATE / "dashboard.pid"
+    log_file = FORGE_STATE / "dashboard.log"
+    FORGE_STATE.mkdir(parents=True, exist_ok=True)
+
+    # Is the server already up?
+    already_running = False
+    try:
+        import urllib.request
+        urllib.request.urlopen(f"http://localhost:{port}/api/projects", timeout=1)
+        already_running = True
+    except Exception:
+        pass
+
+    if not already_running:
+        print(f"[forge] Starting dashboard on :{port} …")
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "dashboard.app:app",
+             "--host", "0.0.0.0", "--port", str(port)],
+            cwd=str(spec_dir),
+            stdout=open(log_file, "ab"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        pid_file.write_text(str(proc.pid))
+        import time
+        for _ in range(20):
+            try:
+                import urllib.request
+                urllib.request.urlopen(f"http://localhost:{port}/api/projects", timeout=0.5)
+                break
+            except Exception:
+                time.sleep(0.5)
+        else:
+            print(f"[forge] Dashboard failed to start — see {log_file}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[forge] Dashboard running (pid {proc.pid}, log: {log_file})")
+
+    if not getattr(args, "no_browser", False):
+        webbrowser.open(f"http://localhost:{port}")
+    print(f"[forge] Dashboard at http://localhost:{port}")
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +445,8 @@ def main() -> None:
     p_doctor = sub.add_parser("doctor", help="Health check")
     p_doctor.set_defaults(func=cmd_doctor)
 
-    p_dash = sub.add_parser("dashboard", help="Open dashboard in browser")
+    p_dash = sub.add_parser("dashboard", help="Start dashboard server + open browser")
+    p_dash.add_argument("--no-browser", action="store_true", help="Start server, don't open browser")
     p_dash.set_defaults(func=cmd_dashboard)
 
     args = parser.parse_args()
