@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Secrets
+.env
+*.pem
+*.key
+*_key.pem
+
+# State
+*.db
+*.db-wal
+*.db-shm
+.forge/baseline/
+.forge/last-run.json
+
+# Quality reports
+.quality/report.json
+.ruff_cache/
+.mypy_cache/
+
+# Dashboard logs
+*.log
+*.err
+
+# Node
+node_modules/
+.next/

@@ -1,0 +1,34 @@
+version: "1.0"
+name: "My Project V1"
+description: "What this milestone achieves"
+
+settings:
+  repo_root: .
+  default_model: sonnet          # fallback if chunk doesn't specify
+  timeout: "45m"
+  max_turns: 120
+  quality:
+    script: .quality/engine.py
+    min_per_dim: 80
+    gating_dims: [security, code, architecture, api, frontend]
+  post_chunk:
+    enabled: true
+    script: scripts/post-chunk.sh
+
+chunks:
+  - id: V1-1
+    title: "DB schema + migration"
+    model: deepseek              # cheap: just Alembic migration
+    status: PENDING
+    punch_list:
+      - "alembic upgrade head clean"
+      - "pytest tests/db/test_schema.py green"
+
+  - id: V1-2
+    title: "Core service layer"
+    model: sonnet
+    status: PENDING
+    depends_on: [V1-1]
+    punch_list:
+      - "all service methods have type hints"
+      - "pytest tests/unit/test_service.py green"

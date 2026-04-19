@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forge Prime Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <span class="logo">⚡ Forge Prime</span>
+    <ul>
+      <li><a href="#" onclick="showView('overview')">Overview</a></li>
+      <li><a href="#" onclick="showView('models')">Models</a></li>
+      <li><a href="#" onclick="showView('wiki')">Wiki</a></li>
+    </ul>
+    <span class="refresh-indicator" id="refresh-indicator"></span>
+  </nav>
+
+  <main>
+    <!-- Overview View -->
+    <section id="view-overview" class="view active">
+      <h1>Overview</h1>
+      <div class="cards" id="project-cards">
+        <p class="loading">Loading projects…</p>
+      </div>
+    </section>
+
+    <!-- Project View -->
+    <section id="view-project" class="view">
+      <h1 id="project-title">Project</h1>
+      <a href="#" onclick="showView('overview')" class="back">← Back</a>
+      <table id="chunk-table">
+        <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Model</th><th>Tokens In</th><th>Tokens Out</th><th>Cost USD</th></tr></thead>
+        <tbody id="chunk-rows"></tbody>
+      </table>
+    </section>
+
+    <!-- Models View -->
+    <section id="view-models" class="view">
+      <h1>Model Usage</h1>
+      <div id="model-cards" class="cards"></div>
+    </section>
+
+    <!-- Wiki View -->
+    <section id="view-wiki" class="view">
+      <h1>Wiki</h1>
+      <div class="wiki-layout">
+        <div id="article-list"></div>
+        <div id="article-content"><p>Select an article.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
