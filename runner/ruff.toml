@@ -1,0 +1,17 @@
+# Ruff config for scripts/forge_runner/ only.
+# This file extends the project-wide pyproject.toml config (root).
+# Rules mandated by research.md §9 and the constitution.
+
+extend = "../../pyproject.toml"
+
+[lint]
+select = [
+    "E", "F", "W",  # project baseline
+    "T201",          # no print() — use structlog
+    "DTZ",           # no naive datetime — use IST-aware zoneinfo
+    "S102",          # no exec()
+    "S301",          # no pickle
+    "B",             # bugbear bad practices
+    "ASYNC",         # common async mistakes
+    "RET",           # return-value consistency
+]

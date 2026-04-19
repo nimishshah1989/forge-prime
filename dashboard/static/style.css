@@ -1,0 +1,100 @@
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #f0a500;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --blue: #58a6ff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+nav .logo { font-weight: 700; font-size: 18px; color: var(--accent); }
+nav ul { display: flex; gap: 16px; list-style: none; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--text); }
+nav .refresh-indicator { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+.view { display: none; }
+.view.active { display: block; }
+
+h1 { font-size: 22px; margin-bottom: 20px; }
+h2 { font-size: 16px; margin-bottom: 12px; color: var(--muted); }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--accent); }
+.card h3 { font-size: 15px; margin-bottom: 8px; }
+.card .stat { font-size: 28px; font-weight: 700; color: var(--accent); }
+.card .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.badge-done { background: #1a3a2a; color: var(--green); }
+.badge-pending { background: #1e2a3a; color: var(--blue); }
+.badge-in-progress { background: #3a2e1a; color: var(--yellow); }
+.badge-failed { background: #3a1a1a; color: var(--red); }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--surface); }
+
+.git-clean { color: var(--green); }
+.git-dirty { color: var(--red); }
+
+.back { color: var(--muted); text-decoration: none; display: inline-block; margin-bottom: 16px; }
+.back:hover { color: var(--text); }
+
+.loading { color: var(--muted); }
+
+.wiki-layout { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+#article-list { border-right: 1px solid var(--border); padding-right: 24px; }
+.article-item { padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.article-item:hover { color: var(--accent); }
+.article-item .cat { font-size: 11px; color: var(--muted); }
+#article-content { padding-left: 8px; white-space: pre-wrap; font-family: monospace; font-size: 13px; }

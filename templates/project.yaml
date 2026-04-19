@@ -1,0 +1,6 @@
+name: "my-project"
+repo_root: .
+domain: general              # or: financial
+project_type: fastapi_next   # or: fastapi_only, nextjs_only, python_only
+ec2_host: ""                 # ubuntu@<ip> for remote deploy
+vercel_project: ""           # Vercel project name for frontend

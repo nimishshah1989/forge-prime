@@ -1,0 +1,9 @@
+[Unit]
+Description=Forge Prime weekly wiki compile
+
+[Timer]
+OnCalendar=Sun *-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
