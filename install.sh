@@ -78,6 +78,16 @@ fi
 ok "Wiki directories created"
 
 # ---------------------------------------------------------------------------
+# Step 5b: Install PreToolUse guardrail hook
+# ---------------------------------------------------------------------------
+log "Installing guardrail hook to ~/.forge/prime/hooks/…"
+HOOKS_DIR="$FORGE_STATE/hooks"
+mkdir -p "$HOOKS_DIR"
+cp "$SCRIPT_DIR/scripts/guardrail.sh" "$HOOKS_DIR/guardrail.sh"
+chmod +x "$HOOKS_DIR/guardrail.sh"
+ok "Guardrail hook installed"
+
+# ---------------------------------------------------------------------------
 # Step 6: Create forge state directories
 # ---------------------------------------------------------------------------
 log "Creating forge state dirs…"

@@ -7,6 +7,10 @@ You are in a fresh session. One chunk. Build it. Ship it. Done.
 2. Read .forge/constitution.md
 3. Read ~/.forge/prime/wiki/index.md — find 1-2 relevant articles only
 4. Read docs/specs/chunks/{chunk_id}.md
+5. If `.forge/codex-feedback-{chunk_id}.txt` exists, read it first.
+   Codex failed on the previous attempt. Address every issue it flagged
+   before implementing anything new. Delete the file only after a
+   successful ship.
 
 ## Execute
 1. Implement the punch list

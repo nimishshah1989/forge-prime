@@ -275,10 +275,14 @@ class LocalImplementStage:
         # Runner-state: session starting
         _update_runner_state(ctx, current_chunk=chunk.id)
 
+        event_count = 0
         try:
             async for event in run_session(chunk, ctx):
                 logs.write_event(chunk.id, event, ctx.log_dir)
                 _update_runner_state(ctx, current_chunk=chunk.id, last_event=event)
+                event_count += 1
+                # Crash-recovery snapshot every 20 events (Enhancement E).
+                logs.write_snapshot_if_needed(chunk.id, event_count, ctx.log_dir)
 
         except AuthFailure:
             logger.error("implement_auth_failure", chunk_id=chunk.id)
