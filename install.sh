@@ -211,12 +211,18 @@ mkdir -p "$FORGE_HOME"
 ENV_FILE="$FORGE_HOME/.env"
 if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" <<'EOF'
-ANTHROPIC_API_KEY=
+# Claude (Anthropic) auth happens through the `claude` CLI via OAuth.
+# Run `claude login` once after install — no API key needed for Max users.
+# Only set ANTHROPIC_API_KEY if you want to bypass OAuth for some reason.
+# ANTHROPIC_API_KEY=
+
+# Required for deepseek / gemini / other non-Anthropic model routing.
 OPENROUTER_API_KEY=
+
 FORGE_DEFAULT_MODEL=sonnet
 EOF
   chmod 600 "$ENV_FILE"
-  ok "Created $ENV_FILE (fill in ANTHROPIC_API_KEY)"
+  ok "Created $ENV_FILE (add OPENROUTER_API_KEY; Anthropic auth via 'claude login')"
 else
   log ".env already exists — skipping"
 fi
@@ -341,6 +347,8 @@ echo "  Dashboard:      http://$DASHBOARD_BIND:8099"
 echo "  Wiki vault:     $WIKI_DIR  (Obsidian: ~/.obsidian-vault)"
 echo "  Add API keys:   $ENV_FILE"
 echo ""
-echo "  Next: edit $ENV_FILE (ANTHROPIC_API_KEY), then"
-echo "        mkdir my-project && cd my-project && git init && forge init"
+echo "  Next:"
+echo "    1. claude login          # OAuth for Anthropic (Max plan) — no API key"
+echo "    2. add OPENROUTER_API_KEY to $ENV_FILE   (for deepseek/gemini routing)"
+echo "    3. mkdir my-project && cd my-project && git init && forge init"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
