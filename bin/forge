@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
-# Thin wrapper: delegate to bin/forge.py using the active python3.
+# Thin wrapper: resolve symlinks so /usr/local/bin/forge -> repo/bin/forge.py works.
 set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  TARGET="$(readlink "$SOURCE")"
+  case "$TARGET" in
+    /*) SOURCE="$TARGET" ;;
+    *)  SOURCE="$DIR/$TARGET" ;;
+  esac
+done
+HERE="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 exec python3 "$HERE/forge.py" "$@"
