@@ -464,8 +464,48 @@ def cmd_resume(args: argparse.Namespace) -> None:
 
 
 def cmd_dashboard(args: argparse.Namespace) -> None:
-    webbrowser.open("http://localhost:8099")
-    print("[forge] Opening dashboard at http://localhost:8099")
+    import socket
+    import time
+
+    def _port_open(host: str, port: int, timeout: float = 0.5) -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    bind = os.environ.get("FORGE_DASHBOARD_BIND", "127.0.0.1")
+    url = "http://localhost:8099"
+
+    if not _port_open("127.0.0.1", 8099):
+        repo_root = Path(__file__).resolve().parent.parent
+        log_path = FORGE_HOME / "dashboard.log"
+        FORGE_HOME.mkdir(parents=True, exist_ok=True)
+        print(f"[forge] Starting dashboard on {bind}:8099 (logs → {log_path})")
+        with open(log_path, "a") as log:
+            subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "dashboard.app:app",
+                 "--host", bind, "--port", "8099"],
+                cwd=str(repo_root),
+                stdout=log,
+                stderr=log,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        for _ in range(20):
+            if _port_open("127.0.0.1", 8099):
+                break
+            time.sleep(0.3)
+        else:
+            print(f"[forge] Dashboard did not come up — see {log_path}")
+            return
+
+    print(f"[forge] Dashboard live at {url}")
+    if os.environ.get("DISPLAY") or sys.platform == "darwin":
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
