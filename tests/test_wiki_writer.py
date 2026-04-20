@@ -1,10 +1,11 @@
 """Tests for runner/wiki_writer.py"""
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
-from runner.wiki_writer import write_article, write_failure_article
+from runner.wiki_writer import write_article, write_failure_article, _commit_and_push
 
 
 def test_write_article_no_key(tmp_path):
@@ -69,3 +70,31 @@ def test_write_failure_article_success(tmp_path, monkeypatch):
 
     assert result is True
     assert (tmp_path / "staging" / "FAIL-V1-1.md").exists()
+
+
+def test_commit_and_push_no_remote_still_succeeds(tmp_path, monkeypatch):
+    """A fresh local-only wiki (no remote) should still return True on commit."""
+    wiki = tmp_path / "wiki"
+    (wiki / "staging").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(wiki)], check=True)
+    subprocess.run(["git", "-C", str(wiki), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(wiki), "config", "user.name",  "t"], check=True)
+    # Disable gpg signing in case the global config forces it in CI.
+    subprocess.run(["git", "-C", str(wiki), "config", "commit.gpgsign", "false"], check=True)
+    subprocess.run(["git", "-C", str(wiki), "config", "tag.gpgsign",    "false"], check=True)
+    # Seed with an initial commit so HEAD exists.
+    (wiki / "README.md").write_text("seed")
+    subprocess.run(["git", "-C", str(wiki), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(wiki), "commit", "-q", "-m", "seed"], check=True)
+
+    (wiki / "staging" / "article.md").write_text("hello")
+    monkeypatch.setattr("runner.wiki_writer.WIKI_DIR", wiki)
+
+    result = _commit_and_push(["staging/article.md"], "wiki: test")
+    assert result is True
+    # Commit landed locally even without a remote.
+    log = subprocess.run(
+        ["git", "-C", str(wiki), "log", "--oneline"],
+        capture_output=True, text=True, check=True,
+    )
+    assert "wiki: test" in log.stdout

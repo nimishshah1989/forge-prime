@@ -4,10 +4,34 @@ Autonomous engineering OS. One command installs everything. Works on any project
 
 ## Install
 
+`install.sh` is one-shot — it installs OS prerequisites (python3.11+, git,
+jq, node, npm), the Claude Code CLI, Python deps, pre-pulls the embedding
+model, sets up the wiki as a local git repo, wires the guardrail hook, and
+starts the dashboard.
+
 ```bash
+git clone https://github.com/nimishshah1989/forge-prime.git ~/forge-prime
+cd ~/forge-prime
 bash install.sh
-forge doctor   # verify all green
+nano ~/.forge-prime/.env      # add ANTHROPIC_API_KEY
+forge doctor                  # verify green
 ```
+
+### EC2 (Ubuntu) — one-liner
+
+```bash
+ssh ubuntu@<ec2-host> 'sudo apt-get update && sudo apt-get install -y git curl && \
+  git clone https://github.com/nimishshah1989/forge-prime.git ~/forge-prime && \
+  cd ~/forge-prime && bash install.sh'
+```
+
+### Flags
+
+- `FORGE_DASHBOARD_BIND=0.0.0.0 bash install.sh` — expose the dashboard on
+  all interfaces. Default is `127.0.0.1` (tunnel via `ssh -L 8099:localhost:8099`).
+- `FORGE_INSTALL_CODEX=1 bash install.sh` — also install `@openai/codex`
+  for the adversarial review step in `forge-ship.sh`.
+- `FORGE_NONINTERACTIVE=1 bash install.sh` — safe for cloud-init user-data.
 
 ## Quick Start
 
