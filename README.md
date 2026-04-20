@@ -13,9 +13,16 @@ starts the dashboard.
 git clone https://github.com/nimishshah1989/forge-prime.git ~/forge-prime
 cd ~/forge-prime
 bash install.sh
-nano ~/.forge-prime/.env      # add ANTHROPIC_API_KEY
+claude login                  # Anthropic OAuth (Max plan) — no API key needed
+nano ~/.forge-prime/.env      # add OPENROUTER_API_KEY (for deepseek/gemini)
 forge doctor                  # verify green
 ```
+
+> **Auth model:** Anthropic access uses OAuth through the `claude` CLI under
+> your Max plan. You only need an `ANTHROPIC_API_KEY` if you want to bypass
+> OAuth; otherwise leave it unset. `OPENROUTER_API_KEY` is what's actually
+> required in the `.env` — it unlocks deepseek / gemini for cheap-scaffold
+> chunks.
 
 ### EC2 (Ubuntu) — one-liner
 

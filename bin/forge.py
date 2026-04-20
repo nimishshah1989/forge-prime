@@ -291,12 +291,32 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     except Exception:
         checks.append(("dashboard :8099", False, "not running (start with: forge dashboard)"))
 
-    # API keys
+    # Auth: Anthropic access goes through the `claude` CLI (OAuth under Max),
+    # so we check CLI auth state rather than requiring an API key. An API key
+    # is only needed if you call the Anthropic API directly, which forge doesn't.
     _load_env()
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    checks.append(("ANTHROPIC_API_KEY", bool(anthropic_key), "set" if anthropic_key else f"missing — edit {FORGE_HOME}/.env"))
+    claude_auth_ok = False
+    claude_auth_detail = "claude cli not found"
+    r = subprocess.run(["which", "claude"], capture_output=True, text=True)
+    if r.returncode == 0:
+        # `claude --version` succeeds once OAuth login has happened and a
+        # session token is cached. If it prompts for login it returns non-zero.
+        check = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=10,
+        )
+        if check.returncode == 0:
+            claude_auth_ok = True
+            claude_auth_detail = f"OAuth (Max) — {check.stdout.strip()}"
+        else:
+            claude_auth_detail = "not logged in — run: claude login"
+    # Explicit API key override (only honoured if set — optional)
+    if os.getenv("ANTHROPIC_API_KEY"):
+        claude_auth_ok = True
+        claude_auth_detail = "ANTHROPIC_API_KEY set (overrides OAuth)"
+    checks.append(("claude auth", claude_auth_ok, claude_auth_detail))
+
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
-    checks.append(("OPENROUTER_API_KEY", bool(openrouter_key), "set" if openrouter_key else f"missing (optional: for deepseek/gemini) — edit {FORGE_HOME}/.env"))
+    checks.append(("OPENROUTER_API_KEY", bool(openrouter_key), "set" if openrouter_key else f"missing (needed for deepseek/gemini routing) — edit {FORGE_HOME}/.env"))
 
     # Semantic index (Enhancement A)
     embed_cache = FORGE_STATE / "wiki" / ".embed-cache.json"
