@@ -87,15 +87,7 @@ def write_article(chunk_id: str, title: str, log_dir: Path) -> bool:
 
     STAGING.mkdir(parents=True, exist_ok=True)
     (STAGING / f"{chunk_id}.md").write_text(article)
-    try:
-        subprocess.run(["git", "-C", str(WIKI_DIR), "add", f"staging/{chunk_id}.md"], check=True)
-        subprocess.run(
-            ["git", "-C", str(WIKI_DIR), "commit", "-m", f"wiki: {chunk_id}"], check=True
-        )
-        subprocess.run(["git", "-C", str(WIKI_DIR), "push"], check=True)
-        return True
-    except Exception:
-        return False
+    return _commit_and_push([f"staging/{chunk_id}.md"], f"wiki: {chunk_id}")
 
 
 def write_failure_article(
@@ -160,16 +152,53 @@ def write_failure_article(
     STAGING.mkdir(parents=True, exist_ok=True)
     article_path = STAGING / f"FAIL-{chunk_id}.md"
     article_path.write_text(article)
+    return _commit_and_push(
+        [f"staging/FAIL-{chunk_id}.md"],
+        f"wiki: failure analysis for {chunk_id}",
+    )
 
+
+def _commit_and_push(rel_paths: list[str], message: str) -> bool:
+    """Add + commit files under WIKI_DIR, push if a remote is configured.
+
+    Returns True if the commit succeeds (with or without a remote push).
+    Returns False only if the local commit itself fails — callers treat that
+    as "article not persisted". Push errors are logged via warn but don't flip
+    the return value: articles that committed locally are recoverable.
+    """
     try:
+        for rel in rel_paths:
+            subprocess.run(
+                ["git", "-C", str(WIKI_DIR), "add", rel],
+                check=True,
+                capture_output=True,
+            )
         subprocess.run(
-            ["git", "-C", str(WIKI_DIR), "add", f"staging/FAIL-{chunk_id}.md"], check=True
-        )
-        subprocess.run(
-            ["git", "-C", str(WIKI_DIR), "commit", "-m", f"wiki: failure analysis for {chunk_id}"],
+            ["git", "-C", str(WIKI_DIR), "commit", "-m", message],
             check=True,
+            capture_output=True,
         )
-        subprocess.run(["git", "-C", str(WIKI_DIR), "push"], check=True)
-        return True
+    except subprocess.CalledProcessError:
+        return False
     except Exception:
         return False
+
+    # Push only if a remote exists. No remote = local-only wiki, which is a
+    # valid configuration (e.g. fresh install, air-gapped box).
+    try:
+        remotes = subprocess.run(
+            ["git", "-C", str(WIKI_DIR), "remote"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if remotes.returncode == 0 and remotes.stdout.strip():
+            subprocess.run(
+                ["git", "-C", str(WIKI_DIR), "push"],
+                check=False,
+                capture_output=True,
+            )
+    except Exception:
+        pass
+
+    return True
