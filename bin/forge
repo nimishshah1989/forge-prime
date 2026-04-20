@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Thin wrapper: delegate to bin/forge.py using the active python3.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$HERE/forge.py" "$@"
