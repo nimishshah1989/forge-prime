@@ -373,6 +373,47 @@ def validate_log_file(path: Path) -> tuple[bool, list[str]]:
     return valid, errors
 
 
+def write_snapshot_if_needed(
+    chunk_id: str,
+    event_count: int,
+    log_dir: Path,
+    *,
+    interval: int = 20,
+) -> Optional[Path]:
+    """Every *interval* events, dump a crash-recovery snapshot (Enhancement E).
+
+    The snapshot reads the tail of the chunk's event log and writes a JSON
+    summary to ``<log_dir>/snapshots/<chunk_id>.snapshot.json``. Returns the
+    snapshot path if one was written, otherwise ``None``.
+
+    Best-effort: never raises. Caller passes the running event count — when
+    ``event_count % interval == 0`` and ``event_count > 0`` we take a snapshot.
+    """
+    if event_count <= 0 or event_count % interval != 0:
+        return None
+    try:
+        from ._time import now_ist, to_iso
+    except Exception:
+        return None
+
+    try:
+        last_events = _read_last_events(chunk_id, log_dir, max_events=interval)
+        snapshot_dir = log_dir / "snapshots"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_path = snapshot_dir / f"{chunk_id}.snapshot.json"
+        payload = {
+            "chunk_id": chunk_id,
+            "captured_at": to_iso(now_ist()),
+            "events_count": event_count,
+            "last_events": scrub(last_events),
+        }
+        _atomic_write(snapshot_path, payload)
+        return snapshot_path
+    except Exception as exc:
+        logger.warning("snapshot_write_failed", chunk_id=chunk_id, error=str(exc))
+        return None
+
+
 def rotate_old_logs(log_dir: Path, keep: int = 50) -> None:
     """Move the oldest ``.log`` files beyond *keep* into ``<log_dir>/archive/``.
 

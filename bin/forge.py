@@ -248,6 +248,16 @@ def cmd_compile(args: argparse.Namespace) -> None:
     compile_wiki()
     print("[forge] Wiki compiled.")
 
+    # Rebuild the semantic index (Enhancement A) — best-effort.
+    try:
+        from runner.wiki_retriever import rebuild_index
+        n = rebuild_index()
+        print(f"[forge] Semantic index rebuilt ({n} articles indexed).")
+    except ImportError as exc:
+        print(f"[forge] Skipping semantic index (sentence-transformers missing): {exc}")
+    except Exception as exc:
+        print(f"[forge] Semantic index rebuild failed: {exc}")
+
 
 def cmd_doctor(args: argparse.Namespace) -> None:
     checks = []
@@ -287,6 +297,45 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     checks.append(("ANTHROPIC_API_KEY", bool(anthropic_key), "set" if anthropic_key else f"missing — edit {FORGE_HOME}/.env"))
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
     checks.append(("OPENROUTER_API_KEY", bool(openrouter_key), "set" if openrouter_key else f"missing (optional: for deepseek/gemini) — edit {FORGE_HOME}/.env"))
+
+    # Semantic index (Enhancement A)
+    embed_cache = FORGE_STATE / "wiki" / ".embed-cache.json"
+    if embed_cache.exists():
+        try:
+            import json as _json
+            n = len(_json.loads(embed_cache.read_text()))
+            checks.append(("wiki semantic index", True, f"{n} articles indexed"))
+        except Exception as exc:
+            checks.append(("wiki semantic index", False, f"cache unreadable: {exc}"))
+    else:
+        checks.append((
+            "wiki semantic index",
+            False,
+            "not built — run: forge compile",
+        ))
+
+    # Guardrail hook (Enhancement B)
+    guardrail_path = FORGE_STATE / "hooks" / "guardrail.sh"
+    checks.append((
+        "guardrail hook",
+        guardrail_path.exists(),
+        str(guardrail_path) if guardrail_path.exists() else "not installed — re-run install.sh",
+    ))
+
+    # Codex auto-rollback (Enhancement C) — presence of rollback handling
+    r = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        ship_script = Path(r.stdout.strip()) / "scripts" / "forge-ship.sh"
+        if ship_script.exists():
+            ship_text = ship_script.read_text()
+            has_rollback = "codex-feedback-" in ship_text and "git reset --soft" in ship_text
+            checks.append((
+                "codex auto-rollback",
+                has_rollback,
+                "configured" if has_rollback else "scripts/forge-ship.sh missing rollback logic",
+            ))
 
     print("\n  Forge Prime — Doctor Report\n")
     all_ok = True
@@ -350,6 +399,50 @@ def cmd_logs(args: argparse.Namespace) -> None:
             print(f"  {raw[:120]}")
 
 
+def cmd_resume(args: argparse.Namespace) -> None:
+    """Resume the most recent chunk snapshot (< 1 hour old) via --retry."""
+    import json as _json
+    import time as _time
+
+    repo = _require_git_repo()
+    snapshot_dir = repo / "orchestrator" / "logs" / "snapshots"
+    if not snapshot_dir.exists():
+        # Runner may be configured to log elsewhere; also try .forge/logs.
+        snapshot_dir = repo / ".forge" / "logs" / "snapshots"
+    if not snapshot_dir.exists():
+        print("No snapshot directory found.", file=sys.stderr)
+        sys.exit(1)
+
+    cutoff = _time.time() - 3600  # 1 hour
+    candidates = [
+        p for p in snapshot_dir.glob("*.snapshot.json") if p.stat().st_mtime >= cutoff
+    ]
+    if not candidates:
+        print("No recent snapshot found (< 1 hour old).")
+        print("Use 'forge run --retry <chunk_id>' instead.")
+        sys.exit(1)
+
+    latest = max(candidates, key=lambda p: p.stat().st_mtime)
+    try:
+        data = _json.loads(latest.read_text())
+    except Exception as exc:
+        print(f"Could not parse snapshot {latest}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    chunk_id = data.get("chunk_id")
+    captured_at = data.get("captured_at", "unknown")
+    if not chunk_id:
+        print(f"Snapshot {latest} has no chunk_id.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Found snapshot for {chunk_id} from {captured_at}")
+    print(f"Resuming chunk {chunk_id}...")
+    retry_args = argparse.Namespace(
+        filter=None, once=True, dry_run=False, retry=chunk_id, skip_git_check=False
+    )
+    cmd_run(retry_args)
+
+
 def cmd_dashboard(args: argparse.Namespace) -> None:
     webbrowser.open("http://localhost:8099")
     print("[forge] Opening dashboard at http://localhost:8099")
@@ -407,6 +500,12 @@ def main() -> None:
 
     p_dash = sub.add_parser("dashboard", help="Open dashboard in browser")
     p_dash.set_defaults(func=cmd_dashboard)
+
+    p_resume = sub.add_parser(
+        "resume",
+        help="Resume the most recent chunk snapshot (< 1 hour old)",
+    )
+    p_resume.set_defaults(func=cmd_resume)
 
     args = parser.parse_args()
     args.func(args)

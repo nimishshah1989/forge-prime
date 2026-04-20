@@ -175,6 +175,47 @@ def wiki_article(category: str, filename: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# API routes — /api/wiki/retrievals (Enhancement F)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/wiki/retrievals")
+def wiki_retrievals() -> list[dict[str, Any]]:
+    """Return articles ranked by cross-project retrieval count.
+
+    Aggregates the ``wiki_retrievals`` table (written by the runner's
+    semantic retriever) across every registered project's state.db. Articles
+    that get retrieved often are earning their keep; articles at zero are
+    candidates for archival.
+    """
+    totals: dict[str, int] = {}
+    for p in _get_projects():
+        db_path = Path(p["repo_root"]) / "orchestrator" / "state.db"
+        if not db_path.exists():
+            continue
+        try:
+            conn = sqlite3.connect(str(db_path), isolation_level=None)
+            # The table may not exist yet for older projects — skip silently.
+            exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='wiki_retrievals'"
+            ).fetchone()
+            if not exists:
+                conn.close()
+                continue
+            rows = conn.execute(
+                "SELECT article_path, COUNT(*) FROM wiki_retrievals "
+                "GROUP BY article_path"
+            ).fetchall()
+            conn.close()
+            for article_path, count in rows:
+                totals[article_path] = totals.get(article_path, 0) + int(count or 0)
+        except sqlite3.Error:
+            continue
+
+    ranked = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
+    return [{"path": path, "retrievals": count} for path, count in ranked[:20]]
+
+
+# ---------------------------------------------------------------------------
 # API routes — /api/models
 # ---------------------------------------------------------------------------
 

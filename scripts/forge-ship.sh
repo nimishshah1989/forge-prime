@@ -80,18 +80,49 @@ else
 fi
 PATH="${ROOT}/venv/bin:${PATH}" python3 .quality/checks.py "${GATE_ARGS[@]}" || { log "FAIL: quality gate"; exit 1; }
 
-# --- 2.5. Codex adversarial review ------------------------------------
+# --- 2.5. Codex adversarial review (with auto-rollback on fail) -------
 log "step 2.5/5 — codex adversarial review"
 if command -v codex &>/dev/null; then
-  REVIEW=$(codex --approval-policy=never \
-    "Review the staged git diff. Output REVIEW_PASS if acceptable. \
-Output REVIEW_FAIL:<reason> if there is a blocking issue. \
+  # Commit temporarily so Codex has a HEAD diff to review. If the tree is
+  # already clean (nothing to commit), skip the temp commit entirely.
+  TEMP_COMMIT_CREATED=0
+  if ! git diff --cached --quiet || ! git diff --quiet; then
+    git add -A
+    if git commit -m "${CHUNK}: pending codex review" --no-verify >/dev/null 2>&1; then
+      TEMP_COMMIT_CREATED=1
+    fi
+  fi
+
+  REVIEW_OUTPUT=$(codex --approval-policy=never \
+    "Review the diff in HEAD. Output REVIEW_PASS if acceptable. \
+Output REVIEW_FAIL: <specific actionable reason> if blocking. \
 Look for: regressions, security issues, missed edge cases, anti-patterns. \
-Be strict — catch what Claude missed." 2>&1 | tail -5)
-  if echo "$REVIEW" | grep -q "REVIEW_PASS"; then
+Be strict." 2>&1 | tail -20)
+
+  if echo "$REVIEW_OUTPUT" | grep -q "REVIEW_PASS"; then
     log "Codex review: PASS"
+    # Amend with the final commit message (step 5 normally handles this, but
+    # if we already committed we must rewrite the subject so it isn't left
+    # as "pending codex review").
+    if [ "$TEMP_COMMIT_CREATED" = "1" ]; then
+      git commit --amend -m "${CHUNK}: ${SUMMARY}
+
+Shipped via scripts/forge-ship.sh — tests+gate+memory+hooks all green.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify
+    fi
   else
-    log "FAIL: Codex blocked commit: $REVIEW" >&2
+    log "Codex review: FAIL" >&2
+    echo "$REVIEW_OUTPUT" >&2
+    if [ "$TEMP_COMMIT_CREATED" = "1" ]; then
+      log "rolling back temp commit — changes preserved in working tree"
+      git reset --soft HEAD~1
+    fi
+    mkdir -p .forge
+    FEEDBACK_FILE=".forge/codex-feedback-${CHUNK}.txt"
+    printf "%s\n" "$REVIEW_OUTPUT" > "$FEEDBACK_FILE"
+    log "Codex feedback saved to $FEEDBACK_FILE"
+    log "Agent should read this file and re-run the chunk with fixes"
     exit 1
   fi
 else
@@ -146,6 +177,12 @@ Shipped via scripts/forge-ship.sh — tests+gate+memory+hooks all green.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
   git push origin HEAD
+elif [ "${TEMP_COMMIT_CREATED:-0}" = "1" ]; then
+  # Codex already committed + amended; nothing to stage, but we must still push.
+  log "temp commit already amended by codex step — pushing"
+  git push origin HEAD
+  # Clear any stale codex feedback from a previous failing run.
+  rm -f ".forge/codex-feedback-${CHUNK}.txt"
 else
   log "nothing to commit (tree already clean); skipping commit+push"
 fi

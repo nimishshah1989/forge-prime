@@ -110,13 +110,24 @@ async def run_session(
         logger.warning("conductor_md_not_found", path=str(conductor_path))
         conductor_text = ""
 
-    conductor_with_chunk = conductor_text + f"\n\nCURRENT CHUNK: {chunk.id}"
+    # Semantic retrieval (Enhancement A): surface relevant wiki articles.
+    retrieved_block = _build_retrieval_block(chunk, ctx)
+    conductor_with_chunk = conductor_text + retrieved_block + f"\n\nCURRENT CHUNK: {chunk.id}"
 
     # Route to OpenRouter for non-Anthropic models
     if provider == ModelProvider.OPENROUTER:
         async for event in _run_openrouter_session(chunk, ctx, model_id, conductor_with_chunk):
             yield event
         return
+
+    # Emit a retrieval event so the dashboard/log can surface what was picked.
+    retrieved_paths = getattr(ctx, "_retrieved_articles", []) or []
+    if retrieved_paths:
+        yield _make_event(
+            chunk.id,
+            "wiki_retrieval",
+            {"articles": [str(p) for p in retrieved_paths]},
+        )
 
     options = ClaudeAgentOptions(
         cwd=str(ctx.repo),
@@ -286,6 +297,68 @@ async def run_session(
             "turns": turns,
             "usage": usage,
         },
+    )
+
+
+def _build_retrieval_block(chunk: ChunkRow, ctx: Any) -> str:
+    """Retrieve top-3 wiki articles for this chunk and format them for the prompt.
+
+    Also logs retrieval events to state.db (Enhancement F) and stashes the
+    resolved paths on ``ctx._retrieved_articles`` so the caller can emit a
+    runner event after session_start.
+
+    Best-effort: any failure (missing cache, import error, IO) yields an empty
+    block so session launch never blocks on retrieval.
+    """
+    try:
+        from .wiki_retriever import log_retrieval, retrieve
+    except Exception:
+        ctx._retrieved_articles = []  # type: ignore[attr-defined]
+        return ""
+
+    chunk_context = chunk.title or chunk.id
+    chunk_spec_path = Path(ctx.repo) / "docs" / "specs" / "chunks" / f"{chunk.id}.md"
+    if chunk_spec_path.exists():
+        try:
+            chunk_context += "\n" + chunk_spec_path.read_text(encoding="utf-8")
+        except OSError:
+            pass
+
+    try:
+        relevant_articles = retrieve(chunk_context, top_k=3)
+    except Exception as exc:
+        logger.warning("wiki_retrieve_failed", chunk_id=chunk.id, error=str(exc))
+        ctx._retrieved_articles = []  # type: ignore[attr-defined]
+        return ""
+
+    ctx._retrieved_articles = relevant_articles  # type: ignore[attr-defined]
+
+    if not relevant_articles:
+        return ""
+
+    # Log retrievals for dashboard telemetry (Enhancement F).
+    try:
+        state_db = getattr(ctx, "state_db_path", None)
+        if state_db:
+            log_retrieval(chunk.id, relevant_articles, str(state_db))
+    except Exception as exc:
+        logger.warning("wiki_retrieval_log_failed", chunk_id=chunk.id, error=str(exc))
+
+    article_contents: list[str] = []
+    for article_path in relevant_articles:
+        try:
+            article_contents.append(
+                f"=== {article_path.name} ===\n" + article_path.read_text(encoding="utf-8")
+            )
+        except OSError:
+            continue
+
+    if not article_contents:
+        return ""
+
+    return (
+        "\n\n## Retrieved wiki articles (semantically similar to this chunk)\n\n"
+        + "\n\n".join(article_contents)
     )
 
 

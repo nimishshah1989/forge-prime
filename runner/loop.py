@@ -8,6 +8,8 @@ Public API:
 
 from __future__ import annotations
 
+import asyncio
+
 import structlog
 
 from ._time import now_ist
@@ -157,7 +159,11 @@ def _reset_current_chunk(ctx: RunContext) -> None:
 
 
 def _mark_current_failed(ctx: RunContext, reason: str) -> None:
-    """Mark ctx.current_chunk FAILED. Best-effort."""
+    """Mark ctx.current_chunk FAILED. Best-effort.
+
+    Also fires a best-effort failure-article write (Enhancement D) so the
+    wiki captures anti-patterns alongside successes.
+    """
     chunk = ctx.current_chunk
     if chunk is None:
         return
@@ -167,6 +173,24 @@ def _mark_current_failed(ctx: RunContext, reason: str) -> None:
         mark_failed(chunk.id, reason, ctx.state_db_path)
     except Exception as exc:
         logger.error("loop_mark_failed_error", chunk_id=chunk.id, error=str(exc))
+
+    try:
+        from .wiki_writer import write_failure_article
+
+        asyncio.create_task(
+            asyncio.to_thread(
+                write_failure_article,
+                chunk.id,
+                chunk.title or chunk.id,
+                ctx.log_dir,
+                reason,
+            )
+        )
+    except RuntimeError:
+        # No running loop (e.g. sync test path) — skip silently.
+        pass
+    except Exception as exc:
+        logger.warning("loop_failure_article_error", chunk_id=chunk.id, error=str(exc))
 
 
 def _write_failure_record(ctx: RunContext, result: StageResult) -> None:

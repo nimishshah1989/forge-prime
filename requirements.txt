@@ -4,3 +4,7 @@ httpx>=0.27.0
 structlog>=24.1.0
 pyyaml>=6.0.1
 claude-agent-sdk>=0.0.10
+# Semantic retrieval for the wiki (Enhancement A). Optional — retriever
+# degrades gracefully to an empty result set if these are missing.
+sentence-transformers>=2.7.0
+numpy>=1.26.0
